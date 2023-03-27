@@ -1,7 +1,6 @@
 *.csv
 *.json
 scrap/
-overflow_files/
 .idea/
 
 # Byte-compiled / optimized / DLL files
