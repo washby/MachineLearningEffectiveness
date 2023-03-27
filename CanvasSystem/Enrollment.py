@@ -9,6 +9,7 @@ class Enrollment(AbstractCanvasObject):
             self._term_id = term_id
         elif in_as == 'csv':
             self._term_id, self._course_id, self._student_id = obj.split(',')
+            self._student_id = self._student_id.strip()
         else:
             raise TypeError("in_as needs to be a string in ['json', 'csv'] or not passed and default to json")
 

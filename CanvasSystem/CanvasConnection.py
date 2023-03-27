@@ -70,9 +70,7 @@ class CanvasSystem:
             print(f'There are current {len(results)} courses in results')
         if used_overflow:
             print("------------------------------USED OVERFLOW----------------------------------------------------")
-            with open(join(self.OVERFLOW_DIR, f'{random_prefix}courses-overflow-{date_str}.csv'), 'a') as outfile:
-                for item in results:
-                    outfile.write(item.as_csv_line())
+            self.__dump_to_overflow(random_prefix, results, "course")
             results = []
             files_with_prefix = []
             for filename in listdir(self.OVERFLOW_DIR):
@@ -127,7 +125,7 @@ class CanvasSystem:
                 if filename.startswith(random_prefix) and filename.endswith('.csv'):
                     with open(join(self.OVERFLOW_DIR, filename)) as file:
                         for line in file.readlines():
-                            results.append(Course(line, in_as='csv'))
+                            results.append(Enrollment(line, in_as='csv'))
         return results
 
     def __get_canvas_response(self, url_info, search_item, extra_params=None, is_next_url=False):
@@ -152,4 +150,6 @@ class CanvasSystem:
             exit()
         return response
 
+    def get_salt(self):
+        return self.__config_info['salt']
 
