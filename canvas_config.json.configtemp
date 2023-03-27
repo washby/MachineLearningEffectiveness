@@ -1,0 +1,7 @@
+{
+  "name": "<University Name>",
+  "base_url": "https://<UNIVERISTY DOMAIN>.instructure.com",
+  "api_token": "<Admin API TOKEN>",
+  "account_id": "<root account for LMS probably 1>",
+  "salt": "<SALT VALUE DECIDED by UNIVERSITY LMS Admin>"
+}
