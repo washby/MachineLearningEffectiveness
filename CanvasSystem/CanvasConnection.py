@@ -27,6 +27,9 @@ class CanvasSystem:
             self.__headers = {"Authorization": f"Bearer {self.__api_token}"}
             self.__account_id = self.__config_info['account_id']
 
+    def get_salt(self):
+        return self.__config_info['salt']
+
     def get_all_terms(self):
         api_suffix = f"accounts/{self.__account_id}/terms"
         response = self.__get_canvas_response(api_suffix, "terms")
@@ -91,53 +94,6 @@ class CanvasSystem:
                             results.append(Course(line, in_as='csv'))
         return results
 
-    def get_assignment_info(self, course_id, assignment_id):
-        # Get all assignments for a course
-        # https://canvas.instructure.com/doc/api/assignments.html#method.assignments_api.index
-        assignments = self.get_all_assignments(course_id)
-        for assignment in assignments:
-            api_suffix = f"courses/{course_id}/assignments/{assignment_id}"
-            response = self.__get_canvas_response(api_suffix, "assignment")
-        return json.loads(response.content)
-
-    def get_login_info(self, student_id_list):
-        random_prefix = ''.join(random.choice(string.ascii_uppercase) for _ in range(4))
-        used_overflow = False
-        if not isinstance(student_id_list, list):
-            return TypeError(f"student_id_list is not instance of list it is {type(student_id_list)}.")
-        results = []
-        len_of_course_list = len(student_id_list)
-        for i, student in enumerate(student_id_list):
-            print(f'{i + 1} of {len_of_course_list}) Getting login info for {student}')
-            api_suffix = f'audit/authentication/users/{student}'
-            response = self.__get_canvas_response(api_suffix, "student_login")
-            login_info = json.loads(response.content)
-            for k, v in login_info.items():
-                print(f'{k} : {v}')
-            # next_url = response.links.get("next", {}).get("url")
-            # while next_url:
-            #     student_enrollments = json.loads(response.content)
-        # if used_overflow:
-        #     print("------------------------------USED OVERFLOW----------------------------------------------------")
-        #     self.__dump_to_overflow(random_prefix, results, "enrollment")
-        #     results = []
-        #     for filename in listdir(self.OVERFLOW_DIR):
-        #         if filename.startswith(random_prefix) and filename.endswith('.csv'):
-        #             with open(join(self.OVERFLOW_DIR, filename)) as file:
-        #                 for line in file.readlines():
-        #                     results.append(Enrollment(line, in_as='csv'))
-        return results
-
-    def __dump_to_overflow(self, random_prefix, results, obj):
-        used_overflow = True
-        date_str = str(datetime.utcnow()).replace(':', '.')
-        filename = f'{random_prefix}{obj}-overflow-{date_str}.csv'
-        with open(join(self.OVERFLOW_DIR, filename), 'a') as outfile:
-            for item in results:
-                outfile.write(item.as_csv_line())
-        return date_str, used_overflow
-
-    # noinspection DuplicatedCode
     def get_all_course_enrollments(self, course_list):
         random_prefix = ''.join(random.choice(string.ascii_uppercase) for _ in range(4))
         used_overflow = False
@@ -176,10 +132,18 @@ class CanvasSystem:
                             results.append(Enrollment(line, in_as='csv'))
         return results
 
+    def get_course_assignments_info(self, course_id, user_id):
+        results = []
+        api_suffix = f"users/{user_id}/courses/{course_id}/assignments"
+        eps = {}
+        response = self.__get_canvas_response(api_suffix, "assignments")
+        return json.loads(response.content)
+
+
+
     def __get_canvas_response(self, url_info, search_item, extra_params=None, is_next_url=False):
         if self.__config_info is None:
             raise Exception("The CanvasSystem class has not been initialized properly.")
-        params = None
         if not is_next_url:
             url = f'{self.__base_url}{url_info}'
             params = {'per_page': 100}
@@ -199,6 +163,14 @@ class CanvasSystem:
             exit()
         return response
 
-    def get_salt(self):
-        return self.__config_info['salt']
+    def __dump_to_overflow(self, random_prefix, results, obj):
+        used_overflow = True
+        date_str = str(datetime.utcnow()).replace(':', '.')
+        filename = f'{random_prefix}{obj}-overflow-{date_str}.csv'
+        with open(join(self.OVERFLOW_DIR, filename), 'a') as outfile:
+            for item in results:
+                outfile.write(item.as_csv_line())
+        return date_str, used_overflow
+
+
 

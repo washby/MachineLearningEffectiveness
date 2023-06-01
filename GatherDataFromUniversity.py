@@ -1,30 +1,33 @@
-from datetime import datetime, timezone
-
+import Utilities.GatherFunctions as gf
 from CanvasSystem.CanvasConnection import CanvasSystem
-from CanvasSystem.Course import Course
-from CanvasSystem.Enrollment import Enrollment
-from CanvasSystem.Term import Term
 from Utilities.Encryption import Encryption
-
+from Utilities.GatherFunctions import gather_enrollments
+from Utilities.Settings import Settings
+import pandas as pd
+import numpy as np
 # PULL_FROM_SERVER is a flag for testing and will be set to True when run
 # for the research study. Since data will be pulled and stored locally
 # the flag allows for faster build time by not repeatedly having to pull
 # from the server while being built.
-PULL_FROM_SERVER = False
-PULL_TERMS_FROM_SERVER = True
-PULL_COURSES_FROM_SERVER = True
-PULL_ENROLLMENTS_FROM_SERVER = True
-ENCYRPT_DATA = False
+# PULL_FROM_SERVER = False
+# PULL_TERMS_FROM_SERVER = True
+# PULL_COURSES_FROM_SERVER = True
+# PULL_ENROLLMENTS_FROM_SERVER = True
+# ENCYRPT_DATA = False
+
+settings = Settings(pull_override=False, pull_terms=True, pull_courses=True, pull_enrollments=True, encrypt=False)
 
 # List of the file names that will be used to store data locally
 TERMS_FILE = 'canvas_terms.csv'
 COURSES_FILE = 'canvas_courses.csv'
 ENROLLMENT_FILE = 'canvas_enrollments.csv'
+STUDENT_RECORD_FILE = 'student_per_term.csv'
 
 # Create CanvasSystem object to make API calls based on config file passed
 canvas = CanvasSystem('Test.json')
 
-if ENCYRPT_DATA:
+encryption_obj = None
+if settings.ENCYRPT_DATA:
     salt = canvas.get_salt()
     print("This password is unique to this run and will not be saved anywhere. Therefore to decrypt the ", end='')
     print("information you will need to be able to reenter the password so ensure it is known or recorded.")
@@ -33,120 +36,48 @@ if ENCYRPT_DATA:
 ###################################################################
 ###    Gather all the enrollment terms from the Canvas system   ###
 ###################################################################
-if PULL_FROM_SERVER and PULL_TERMS_FROM_SERVER:
-    terms = canvas.get_all_terms()
-    # remove any duplicates that got into the system
-    term_dict = {}
-    for term in terms:
-        term_dict[term.id] = term
-    terms = None
-    terms = [v for k, v in term_dict.items() if not(v.start_date is None or v.end_date is None)]
-    terms.sort()
-    with open(TERMS_FILE, 'w') as file:
-        file.write('id,name,start_date,end_date,is_available\n')
-        for term in terms:
-            if ENCYRPT_DATA:
-                term.encrypt(encryption_obj)
-            file.write(term.as_csv_line())
-else:
-    lines = None
-    terms = []
-    with open(TERMS_FILE) as file:
-        lines = file.readlines()
-        for line in lines[1:]:
-            terms.append(Term(line, in_as='csv'))
-
-min_date = None
-max_date = None
-for term in terms:
-    if ENCYRPT_DATA:
-        term.decrypt(encryption_obj)
-    # if term.start_date or term.end_date > time.time()
-    if min_date is None or term.start_date < min_date:
-        min_date = term.start_date
-    if max_date is None or term.end_date > max_date:
-        max_date = term.end_date
-
-term_dict = {}
-for term in terms:
-    term_dict[term.id] = term
+terms = gf.gather_emrollment_terms(settings, canvas, TERMS_FILE, encryption_obj)
 
 ###################################################################
 ###    Gather all the courses in the needed terms from Canvas   ###
 ###################################################################
-courses = []
-if PULL_FROM_SERVER and PULL_COURSES_FROM_SERVER:
-    courses = canvas.get_all_courses_in_terms(terms)
-    with open(COURSES_FILE, 'w') as file:
-        file.write('term_id,id,name,course_level,credit_count,start_date,end_date\n')
-        for course in courses:
-            if ENCYRPT_DATA:
-                course.encrypt(encryption_obj)
-            file.write(course.as_csv_line())
-else:
-    with open(COURSES_FILE) as file:
-        lines = file.readlines()[1:]
-        for line in lines:
-            courses.append(Course(line, in_as='csv'))
-
-if ENCYRPT_DATA:
-    for course in courses:
-        course.decrypt(encryption_obj)
-
-crs_dict = {}
-for course in courses:
-    if course.id not in crs_dict:
-        crs_dict[course.id] = course
+courses, crs_dict = gf.gather_courses(settings, canvas, terms, COURSES_FILE, encryption_obj)
 
 ###################################################################
 ###    Gather all the enrollments in the courses from Canvas    ###
 ###################################################################
-enrollments = []
-if PULL_FROM_SERVER and PULL_ENROLLMENTS_FROM_SERVER:
-    enrollments = canvas.get_all_course_enrollments(courses)
-    with open(ENROLLMENT_FILE, 'w') as file:
-        file.write('term_id,course_id,student_id\n')
-        for enrollment in enrollments:
-            if ENCYRPT_DATA:
-                enrollment.encrypt(encryption_obj)
-            file.write(enrollment.as_csv_line())
-else:
-    with open(ENROLLMENT_FILE) as file:
-        lines = file.readlines()[1:]
-        for line in lines:
-            enrollments.append(Enrollment(line, in_as='csv'))
+enrollments = gf.gather_enrollments(settings, canvas, courses, ENROLLMENT_FILE, encryption_obj)
+term_ids = []
+course_ids = []
+student_ids = []
+crs_level = []
+crs_credits = []
+for enrl in enrollments:
+    term_ids.append(enrl.term_id)
+    course_ids.append(enrl.course_id)
+    student_ids.append(enrl.student_id)
+    crs_level.append(crs_dict[enrl.course_id].course_level)
+    crs_credits.append(crs_dict[enrl.course_id].course_credit_count)
+student_per_term_df = pd.DataFrame({'term_id': term_ids, 'course_id': course_ids, 'student_id': student_ids,
+                               'course_level': crs_level, 'course_credits': crs_credits})
+student_per_term_df['course_count'] = student_per_term_df.groupby(['student_id', 'term_id'])['course_id'].transform('count')
+student_per_term_df['course_level_avg'] = student_per_term_df.groupby(['student_id', 'term_id'])['course_level'].transform('mean')
+student_per_term_df['course_credit_sum'] = student_per_term_df.groupby(['student_id', 'term_id'])['course_credits'].transform('sum')
+student_per_term_df.drop(['course_level', 'course_credits'], axis=1, inplace=True)
 
-if ENCYRPT_DATA:
-    for enrollment in enrollments:
-        enrollment.decrypt(encryption_obj)
+student_per_term_df.to_csv(STUDENT_RECORD_FILE, index=False)
 
-###################################################################
-###    Build Student Information Setup                          ###
-###################################################################
-# TODO: Calculate number of courses/credits per user per term
-#Calculate number of courses per user per term
-courses_per_user_per_term = {}
-for enrollment in enrollments:
-    if enrollment.term_id not in courses_per_user_per_term:
-        courses_per_user_per_term[enrollment.term_id] = {}
-    if enrollment.student_id not in courses_per_user_per_term[enrollment.term_id]:
-        courses_per_user_per_term[enrollment.term_id][enrollment.student_id] = {}
-        courses_per_user_per_term[enrollment.term_id][enrollment.student_id]['courses'] = 0
-        courses_per_user_per_term[enrollment.term_id][enrollment.student_id]['crs_level'] = 0
-        courses_per_user_per_term[enrollment.term_id][enrollment.student_id]['crs_crd_cnt'] = 0
-    courses_per_user_per_term[enrollment.term_id][enrollment.student_id]['courses'] += 1
-    courses_per_user_per_term[enrollment.term_id][enrollment.student_id]['crs_level'] += crs_dict[enrollment.course_id].course_level
-    courses_per_user_per_term[enrollment.term_id][enrollment.student_id]['crs_crd_cnt'] += crs_dict[enrollment.course_id].course_credit_count
+# TODO: Calculate average submission date per user per term
+for index, record in student_per_term_df.head(1).iterrows():
+    print(record)
+    result = canvas.get_course_assignments_info(record['course_id'], record['student_id'])
+    for item in result:
+        print(item)
+        for k,v in item.items():
+            print(f'{k}->: {v}')
+        print('\n------\n')
 
-for term_id in courses_per_user_per_term:
-    for student_id in courses_per_user_per_term[term_id]:
-        count = courses_per_user_per_term[term_id][student_id]['courses']
-        print(f"Term: {term_id} Student: {student_id}")
-        print(f"---Course count: {count}")
-        print(f"---Course level: {courses_per_user_per_term[term_id][student_id]['crs_level']/count}")
-        print(f"---Course credit avg: {courses_per_user_per_term[term_id][student_id]['crs_crd_cnt']}")
-
-# TODO: Calculate average course level per user per term
+# TODO: Get final grade in course per user per term
 
 # TODO: Query message activity per user per term
 
@@ -154,4 +85,3 @@ for term_id in courses_per_user_per_term:
 
 # TODO: Calculate weekly login average per user per term
 
-# TODO: Calculate average submission date per user per term
