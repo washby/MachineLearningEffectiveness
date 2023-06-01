@@ -1,7 +1,7 @@
 from datetime import datetime
 
 
-class AbstractCanvasObject:
+class AbstractCanvasObjectWithDates:
     def __init__(self):
         self._id = None
         self._end_date = None

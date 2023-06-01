@@ -1,0 +1,7 @@
+{
+  "name": "University Name",
+  "base_url": "https://<DOMAIN>.instructure.com",
+  "api_token": "<CANVAS GENERATED TOKEN>",
+  "account_id": "1",
+  "salt": "<SALT_VALUE_GOES_HERE_BY_LMS_ADMIN>"
+}

@@ -1,7 +1,6 @@
-from CanvasSystem.AbstractCanvasObject import AbstractCanvasObject
+from CanvasSystem.AbstractCanvasObjectWithDates import AbstractCanvasObjectWithDates
 
-
-class Enrollment(AbstractCanvasObject):
+class Enrollment(AbstractCanvasObjectWithDates):
     def __init__(self, obj, course_id=None, term_id=None, in_as='json'):
         if in_as == 'json':
             self._student_id = obj['id']
@@ -12,6 +11,16 @@ class Enrollment(AbstractCanvasObject):
             self._student_id = self._student_id.strip()
         else:
             raise TypeError("in_as needs to be a string in ['json', 'csv'] or not passed and default to json")
+
+    def encrypt(self, encryption_obj):
+        self._student_id = encryption_obj.encrypt(str(self._student_id))
+        self._term_id = encryption_obj.encrypt(str(self._term_id))
+        self._course_id = encryption_obj.encrypt(str(self._course_id))
+
+    def decrypt(self, encryption_obj):
+        self._term_id = encryption_obj.decrypt(self._term_id)
+        self._student_id = encryption_obj.decrypt(self._student_id)
+        self._course_id = encryption_obj.decrypt(self._course_id)
 
     def as_csv_line(self):
         # term_id,course_id,student_id

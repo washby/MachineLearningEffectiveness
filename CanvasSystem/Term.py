@@ -1,13 +1,13 @@
-from CanvasSystem.AbstractCanvasObject import AbstractCanvasObject
-from Utilities.utils import encrypt, decrypt
+from CanvasSystem.AbstractCanvasObjectWithDates import AbstractCanvasObjectWithDates
 
-class Term(AbstractCanvasObject):
+
+class Term(AbstractCanvasObjectWithDates):
     def __init__(self, obj, in_as="json"):
         if obj is None:
             raise ValueError
+        self._start_date = None
+        self._end_date = None
         if in_as == "json":
-            self._start_date = None
-            self._end_date = None
             self._json = obj
             self._name = obj['name']
             self._id = obj['id']
@@ -21,15 +21,13 @@ class Term(AbstractCanvasObject):
             self._set_start_end_dates(start_at_string, end_at_string)
             self._active = active == "True"
 
-    def encrypt(self, salt, pw):
-        self._id = encrypt(str(self._id), salt, pw)
-        self._name = encrypt(self._name, salt, pw)
+    def encrypt(self, encryption):
+        self._id = encryption.encrypt(str(self._id))
+        self._name = encryption.encrypt(self._name)
 
-    def decrypt(self, salt, pw):
-        temp_id = bytes(self._id[2:], 'utf-8').decode()
-        temp_name = bytes(self._name[2:], 'utf-8').decode()
-        self._id = decrypt(temp_id, salt, pw)
-        self._name = decrypt(temp_name, salt, pw)
+    def decrypt(self, encryption_obj):
+        self._id = encryption_obj.decrypt(self._id)
+        self._name = encryption_obj.decrypt(self._name)
 
     def is_active(self):
         return self._active
